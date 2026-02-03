@@ -1,27 +1,29 @@
 import os
+import sys
 from dotenv import load_dotenv
 from groq import Groq
 
-# 1. تحميل المتغيرات البيئية
 load_dotenv()
 
 class AtlasAgent:
     def __init__(self):
-        # 2. إعداد الاتصال بـ Groq
-        self.client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-        self.model = "llama-3.1-70b-versatile"
+        # تأكد أن المفتاح كاين باش البرنامج ما يتبلوكاش من بعد
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key:
+            raise ValueError("❌ GROQ_API_KEY non trouvée dans le fichier .env")
+            
+        self.client = Groq(api_key=api_key)
+        # خذ الموديل من .env وإذا مالقيتيهش استعمل هاد الافتراضي
+        self.model = os.getenv("GROQ_MODEL", "llama-3.3-70b-specdec")
         
-        # 3. الذاكرة الأساسية (System Prompt)
         self.history = [
             {"role": "system", "content": "انت خبير ذكاء اصطناعي مغربي سميتك أطلس. جاوب بالدارجة المغربية بذكاء."}
         ]
 
     def chat(self, user_input):
-        # 4. إضافة سؤال المستخدم للتاريخ
         self.history.append({"role": "user", "content": user_input})
 
         try:
-            # 5. طلب الجواب مع تفعيل خاصية الـ Streaming
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=self.history,
@@ -31,28 +33,29 @@ class AtlasAgent:
             print("Atlas: ", end="", flush=True)
             full_response = ""
             
-            # 6. حلقة استقبال الكلمات (Chunks)
             for chunk in response:
-                # التأكد أن "الطرف" المحصل عليه فيه نص
-                if chunk.choices[0].delta.content:
-                    content = chunk.choices[0].delta.content
-                    print(content, end="", flush=True) # طبع الكلمة فوراً
-                    full_response += content # تجميع الجواب الكامل
+                # طريقة آمنة للحصول على النص
+                content = chunk.choices[0].delta.content or ""
+                if content:
+                    print(content, end="", flush=True)
+                    full_response += content
             
-            print("\n") # سطر جديد في الأخير
-            
-            # 7. حفظ الجواب الكامل في الذاكرة
+            print("\n")
             self.history.append({"role": "assistant", "content": full_response})
             
         except Exception as e:
-            print(f"\nError: {str(e)}")
+            print(f"\n⚠️ Error calling Groq API: {str(e)}")
 
-# 8. حلقة التشغيل الرئيسية
 if __name__ == "__main__":
-    bot = AtlasAgent()
-    print("--- Atlas AI (Streaming Mode) ---")
-    while True:
-        text = input("You: ")
-        if text.lower() in ["exit", "quit"]:
-            break
-        bot.chat(text)
+    try:
+        bot = AtlasAgent()
+        print(f"--- Atlas AI Online ({bot.model}) ---")
+        while True:
+            text = input("You: ")
+            if text.lower() in ["exit", "quit"]:
+                print("Bye! 👋")
+                break
+            bot.chat(text)
+    except KeyboardInterrupt: # التعامل مع Ctrl+C بجمالية
+        print("\nStopped by user. Bye!")
+        sys.exit()
