@@ -8,13 +8,13 @@
 - **Context Aware:** Designed to handle conversational memory (In-progress).
 - **Modular:** Easy to integrate with WhatsApp, Telegram, or Web APIs.
 
-## 🛠 Tech Stack
+### 🛠 Tech Stack
 
 - **Language:** Python 3.10+
 - **AI Engine:** Groq (Llama 3.1)
 - **Environment:** Linux/WSL2
 
-## ⚙️ Installation
+#### ⚙️ Installation
 
 1. Clone the repo: `git clone https://github.com/ThamiBa/atlas-ai-agent.git`
 2. Install dependencies: `pip install -r requirements.txt`
