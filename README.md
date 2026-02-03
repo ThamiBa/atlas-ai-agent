@@ -11,7 +11,7 @@
 ## 🛠 Tech Stack
 
 - **Language:** Python 3.10+
-- **AI Engine:** OpenAI GPT-4o
+- **AI Engine:** Groq (Llama 3.1)
 - **Environment:** Linux/WSL2
 
 ## ⚙️ Installation
