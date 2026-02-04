@@ -18,4 +18,4 @@
 
 1. Clone the repo: `git clone https://github.com/ThamiBa/atlas-ai-agent.git`
 2. Install dependencies: `pip install -r requirements.txt`
-3. Set up your `.env` file with your OpenAI API Key.
+3. Set up your `.env` file with your Groq (Llama 3.1) API Key.
