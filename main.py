@@ -1,80 +1,72 @@
 import os
-import sys
-# تأكد أنك أنسطاليتي python-dotenv و groq
-from dotenv import load_dotenv
+import requests
+import base64
 from groq import Groq
+from dotenv import load_dotenv
 
-# تحميل السوارت من ملف .env
 load_dotenv()
 
 class AtlasAgent:
     def __init__(self):
-        # 1. التأكد من وجود الـ API Key
-        api_key = os.getenv("GROQ_API_KEY")
-        if not api_key:
-            raise ValueError("❌ GROQ_API_KEY missing in .env file!")
-            
-        self.client = Groq(api_key=api_key)
-        
-        # 2. جلب الموديل من .env (درت ليك llama-3.1-8b-instant كاحتياط حيت مستقر)
-        self.model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
-        
-        # 3. الذاكرة (System Prompt)
-        self.history = [
-            {"role": "system", "content": "انت خبير ذكاء اصطناعي مغربي سميتك أطلس. جاوب بالدارجة المغربية بذكاء واحترافية."}
-        ]
+        # إعداد Groq للشات (Llama 3.3)
+        self.groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        self.groq_model = "llama-3.3-70b-versatile"
+        self.history = [{"role": "system", "content": "انت أطلس، مساعد مغربي ذكي كيهضر بالدارجة."}]
 
-    def chat(self, user_input):
-        """هاد الدالة كتاخد السؤال وترجع الجواب"""
-        # إضافة سؤال المستخدم للذاكرة
-        self.history.append({"role": "user", "content": user_input})
+    def chat(self, user_input, image_url=None):
+        # --- حالة Vision (Gemini v1beta Direct API) ---
+        if image_url:
+            try:
+                img_res = requests.get(image_url, timeout=20)
+                img_base64 = base64.b64encode(img_res.content).decode('utf-8')
+                api_key = os.getenv("GEMINI_API_KEY")
+                
+                # ليستة ديال الموديلات المحتملة بالترتيب
+                models_to_try = [
+                    "gemini-1.5-flash",
+                    "gemini-1.5-flash-8b",
+                    "gemini-1.5-pro",
+                    "gemini-2.0-flash-exp" # الموديل الجديد ديال 2026
+                ]
+                
+                last_error = ""
+                for model_name in models_to_try:
+                    # تجربة v1beta أولاً ثم v1
+                    for version in ["v1beta", "v1"]:
+                        url = f"https://generativelanguage.googleapis.com/{version}/models/{model_name}:generateContent?key={api_key}"
+                        payload = {
+                            "contents": [{
+                                "parts": [
+                                    {"text": f"حلل الصورة بالدارجة المغربية: {user_input}"},
+                                    {"inline_data": {"mime_type": "image/jpeg", "data": img_base64}}
+                                ]
+                            }]
+                        }
+                        
+                        response = requests.post(url, json=payload, timeout=20)
+                        res_json = response.json()
+                        
+                        if response.status_code == 200:
+                            return res_json['candidates'][0]['content']['parts'][0]['text']
+                        else:
+                            last_error = res_json.get('error', {}).get('message', 'Unknown')
+                            continue # جرب الموديل أو النسخة اللي بعدها
+                
+                return f"❌ كاع الموديلات عطاو 404. آخر خطأ: {last_error}"
+                
+            except Exception as e:
+                return f"⚠️ Vision Error: {str(e)}"
 
-        try:
-            # طلب الجواب من Groq
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=self.history,
-                stream=True
-            )
-            
-            # طباعة الجواب في الـ Terminal (للمراقبة)
-            print("Atlas: ", end="", flush=True)
-            full_response = ""
-            
-            for chunk in response:
-                content = chunk.choices[0].delta.content or ""
-                if content:
-                    print(content, end="", flush=True)
-                    full_response += content
-            
-            print("\n") # سطر جديد بعد نهاية الجواب
-            
-            # حفظ جواب البوت في الذاكرة
-            self.history.append({"role": "assistant", "content": full_response})
-            
-            # ركز هنا: ضروري نرجعو النص باش Telegram يقدر يخدم بيه
-            return full_response
-            
-        except Exception as e:
-            error_msg = f"Error calling Groq API: {str(e)}"
-            print(f"\n⚠️ {error_msg}")
-            return error_msg
-
-# حلقة التشغيل (كتخدم غير إلا شعلتي هاد الملف نيشان)
-if __name__ == "__main__":
-    try:
-        bot = AtlasAgent()
-        print(f"--- Atlas AI Online ({bot.model}) ---")
-        print("Type 'exit' to quit.")
-        
-        while True:
-            text = input("You: ")
-            if text.lower() in ["exit", "quit"]:
-                print("Bye! 👋")
-                break
-            # هنا ما غنحتاجوش نديرو print حيت الدالة chat ديجا كتدير print للـ chunks
-            bot.chat(text)
-            
-    except KeyboardInterrupt:
-        print("\nStopped by user. Bye!")
-        sys.exit()
+        # --- حالة Chat (Groq) ---
+        else:
+            try:
+                self.history.append({"role": "user", "content": user_input})
+                completion = self.groq_client.chat.completions.create(
+                    model=self.groq_model,
+                    messages=self.history
+                )
+                ans = completion.choices[0].message.content
+                self.history.append({"role": "assistant", "content": ans})
+                return ans
+            except Exception as e:
+                return f"⚠️ Groq Error: {str(e)}"
